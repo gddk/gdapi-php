@@ -26,20 +26,24 @@ require_once('cs-config.php');
 if ( !isset($argv[1]) ) { display_help(); exit; }
 $command = $argv[1];
 
+$flags = getFlags($argc, $argv);
+$arguments = getArguments($argc, $argv);
+
 switch($command) {
 	case 'vmls':
-		$flags = getFlags($argc, $argv);
-		$arguments = getArguments($argc, $argv);
 		vmls($flags, $arguments);
 		break;
 	case 'vmcreate':
-		vmcreate();
+		vmcreate($flags, $arguments);
+		break;
+	case 'vmdelete':
+		vmdelete($flags, $arguments);
 		break;
 	case 'nwls':
-		nwls();
+		nwls($flags, $arguments);
 		break;
 	case 'tpls':
-		tpls();
+		tpls($flags, $arguments);
 		break;
 	default:
 		display_help();
@@ -121,20 +125,159 @@ function vmls($flags=null, $arguments=array())
 	}
 }
 
-function vmcreate()
+function nwls($flags=null, $arguments=array()) 
 {
+	if ( strpos($flags, "h")!==false ) { display_help("nwls"); return; }
 	
+	$verbose = false;
+	if ( strpos($flags, "v")!==false ) { $verbose = true; }
+
+	$filter = array();
+	foreach($arguments as $arg)
+	{
+		list($key, $val) = explode("=", $arg, 2);
+		if ($key)
+			$filter[$key] = $val;
+	}
+
+	$client = new \GDAPI\Client(CS_URL, CS_ACCESS_KEY, CS_SECRET_KEY);
+	$networks = $client->network->query($filter);
+	
+	foreach ( $networks as $network )
+	{
+	  print $network->getName() . "\t" . $network->getId() . "\t" . $network->getState();
+	  if ($verbose)
+	  {
+	  	print "\t".$network->getCreated();
+	  	print "\t".$network->getDefaultIpv4Gateway();
+	  	print "\t".$network->getPrimaryIpv4Address();
+	  	print "\t".$network->getDomain();
+	  	print "\t".$network->getIpv4Cidr();
+	  }
+	  print "\n";
+	}
 }
 
-function nwls()
+function tpls($flags=null, $arguments=array()) 
 {
+	if ( strpos($flags, "h")!==false ) { display_help("tpls"); return; }
 	
+	$verbose = false;
+	if ( strpos($flags, "v")!==false ) { $verbose = true; }
+
+	$filter = array();
+	foreach($arguments as $arg)
+	{
+		list($key, $val) = explode("=", $arg, 2);
+		if ($key)
+			$filter[$key] = $val;
+	}
+
+	$client = new \GDAPI\Client(CS_URL, CS_ACCESS_KEY, CS_SECRET_KEY);
+	$templates = $client->template->query($filter);
+	
+	foreach ( $templates as $template )
+	{
+	  print $template->getName() . "\t" . $template->getId() . "\t" . $template->getState();
+	  if ($verbose)
+	  {
+	  	print "\t".$template->getTemplateType();
+  		print "\t".$template->getCreated();
+	  	print "\t".$template->getDescription();
+	  	print "\t".$template->getGuestOs();
+	  	print "\t".$template->getGuestOsVersion();
+	  	print "\t".$template->getBits();
+	  	print "\t".$template->getSourceSnapshotId();
+	  }
+	  print "\n";
+	}
 }
 
-function tpls()
+function vmcreate($flags=null, $arguments=array())
 {
+	if ( strpos($flags, "h")!==false ) { display_help("vmcreate"); return; }
 	
+	$verbose = false;
+	if ( strpos($flags, "v")!==false ) { $verbose = true; }
+
+	$filter = array();
+	foreach($arguments as $arg)
+	{
+		list($key, $val) = explode("=", $arg, 2);
+		if ($key)
+			$filter[$key] = $val;
+	}
+
+	$name = $filter['name'];
+	$network_id = $filter['networkId'];
+	$template_id = $filter['templateId'];
+	$offering = $filter['offering'];
+
+	if ( !$offering )
+		$offering = '1gb-4vcpu';
+
+	if (!$name || !$network_id || !$template_id || !$offering ) {
+		display_help("vmcreate");
+		return;
+		
+	}
+
+	$client = new \GDAPI\Client(CS_URL, CS_ACCESS_KEY, CS_SECRET_KEY);
+	
+	$props = array(
+		'name' => $name,
+		'networkId' => $network_id,
+		'templateId' => $template_id,
+		'offering' => $offering
+	);
+	
+	print_r($props);
+	$client->virtualmachine->create($props);
 }
+
+function vmdelete($flags=null, $arguments=array())
+{
+	if ( strpos($flags, "h")!==false ) { display_help("vmdelete"); return; }
+	
+	$verbose = false;
+	if ( strpos($flags, "v")!==false ) { $verbose = true; }
+
+	$filter = array();
+	foreach($arguments as $arg)
+	{
+		list($key, $val) = explode("=", $arg, 2);
+		if ($key)
+			$filter[$key] = $val;
+	}
+	
+	$id = $filter['id'];
+	$name = $filter['name'];
+	
+	if ( !($id || $name) ) {
+		display_help("vmdelete");
+		return;
+		
+	}
+	
+	$client = new \GDAPI\Client(CS_URL, CS_ACCESS_KEY, CS_SECRET_KEY);
+	if ($id)
+	{
+		$machine = $client->virtualmachine->getById($id);
+		echo "Deleting ".$machine->getName() . "\n";
+		$result = $machine->remove();
+	}
+	if ($name)
+	{
+		$machines = $client->virtualmachine->query( array('name'=>$name) );
+		$id = null;
+		foreach ( $machines as $machine )
+		{
+			echo "Deleting ".$machine->getName() . " " . $machine->getId() . "\n";
+		  	$result = $machine->remove();
+		}
+	}
+}
+
 
 function display_help($command=null) {
 	if (!$command)
@@ -159,11 +302,47 @@ Where command is one of:
 	filter	: i.e. name=web01
 ";	
 			break;
+			
+		case 'nwls':
+			echo "Usage: php cli-cs.php nwls [-h] [-v] [filter]
+	-h	: Print the help and exit.  If the h flag is present, only help will display.
+	-v	: verbose output
+	filter	: i.e. name=network01
+";	
+			break;
+			
+		case 'tpls':
+			echo "Usage: php cli-cs.php tpls [-h] [-v] [filter]
+	-h	: Print the help and exit.  If the h flag is present, only help will display.
+	-v	: verbose output
+	filter	: i.e. name=template01 (doesn't work)
+";	
+			break;
+			
+		case 'vmcreate':
+			echo "Usage: php cli-cs.php vmcreate [-h] name=<str> networkId=<str> templateId=<str> [offering=<str>]
+	-h	: Print the help and exit.  If the h flag is present, only help will display.
+	name	: Name of the VM to create
+	networkId	: The Id of the network to place the VM
+	templateId	: The Id of the template to use
+	offering	: [optional] The offering to use; default 1gb-4vcpu
+";	
+			break;
+	
+		case 'vmdelete':
+			echo "Usage: php cli-cs.php vmdelete [-h] [id=<str>] [name=<str>]
+	-h	: Print the help and exit.  If the h flag is present, only help will display.
+	id	: Id of the VM to delete.  Optional, but one of id or name must be present.
+	name	: Name of the VM(s) to delete. Optional, but one of id or name must be present.
+";	
+			break;
+			
 		default:
 			echo "Usage: php cli-cs.php command [cmd_arg1] ...
 Where command is one of:
 	vmls	: List virtual machines
 	vmcreate: Create virtual machine
+	vmdelete: Delete virtual machine
 	nwls	: List networks
 	tpls	: List templates
 	
