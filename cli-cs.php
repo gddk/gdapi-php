@@ -45,6 +45,12 @@ switch($command) {
 	case 'tpls':
 		tpls($flags, $arguments);
 		break;
+	case 'lbls':
+		lbls($flags, $arguments);
+		break;
+	case 'ipls':
+		ipls($flags, $arguments);
+		break;
 	default:
 		display_help();
 		exit;
@@ -193,6 +199,72 @@ function tpls($flags=null, $arguments=array())
 	}
 }
 
+function lbls($flags=null, $arguments=array()) 
+{
+	if ( strpos($flags, "h")!==false ) { display_help("lbls"); return; }
+	
+	$verbose = false;
+	if ( strpos($flags, "v")!==false ) { $verbose = true; }
+
+	$filter = array();
+	foreach($arguments as $arg)
+	{
+		list($key, $val) = explode("=", $arg, 2);
+		if ($key)
+			$filter[$key] = $val;
+	}
+
+	$client = new \GDAPI\Client(CS_URL, CS_ACCESS_KEY, CS_SECRET_KEY);
+	$loadbalancers = $client->loadbalancer->query($filter);
+	
+	foreach ( $loadbalancers as $loadbalancer )
+	{
+	  print $loadbalancer->getName() . "\t" . $loadbalancer->getId() . "\t" . $loadbalancer->getPublicStartPort();
+	  if ($verbose)
+	  {
+	  	print "\t".$loadbalancer->getPrivatePort();
+	  	print "\t".$loadbalancer->getAlgorithm();
+  		print "\t".$loadbalancer->getCreated();
+	  	print "\t".$loadbalancer->getNetworkId();
+	  	print "\t".$loadbalancer->getPublicIpv4AddressId();
+	  	print "\t".$loadbalancer->getPolicy();
+	  	print "\t".implode(",", $loadbalancer->getVirtualMachineIds());
+	  }
+	  print "\n";
+	}
+}
+
+function ipls($flags=null, $arguments=array()) 
+{
+	if ( strpos($flags, "h")!==false ) { display_help("ipls"); return; }
+	
+	$verbose = false;
+	if ( strpos($flags, "v")!==false ) { $verbose = true; }
+
+	$filter = array();
+	foreach($arguments as $arg)
+	{
+		list($key, $val) = explode("=", $arg, 2);
+		if ($key)
+			$filter[$key] = $val;
+	}
+
+	$client = new \GDAPI\Client(CS_URL, CS_ACCESS_KEY, CS_SECRET_KEY);
+	$ipaddresses = $client->publicipaddress->query($filter);
+	
+	foreach ( $ipaddresses as $ipaddress )
+	{
+	  print $ipaddress->getName() . "\t" . $ipaddress->getId() . "\t" . $ipaddress->getAddress();
+	  if ($verbose)
+	  {
+	  	print "\t".$ipaddress->getIpAddressType();
+	  	print "\t".$ipaddress->getNetworkId();
+  		print "\t".$ipaddress->getPrimary();
+	  }
+	  print "\n";
+	}
+}
+
 function vmcreate($flags=null, $arguments=array())
 {
 	if ( strpos($flags, "h")!==false ) { display_help("vmcreate"); return; }
@@ -316,6 +388,21 @@ Where command is one of:
 	-h	: Print the help and exit.  If the h flag is present, only help will display.
 	-v	: verbose output
 	filter	: i.e. name=template01 (doesn't work)
+";
+			break;
+			
+		case 'lbls':
+			echo "Usage: php cli-cs.php lbls [-h] [-v] [filter]
+	-h	: Print the help and exit.  If the h flag is present, only help will display.
+	-v	: verbose output
+	filter	: i.e. publicStartPort=modifier lt=1024, i.e. removed=modifier
+";	
+			break;
+			
+		case 'ipls':
+			echo "Usage: php cli-cs.php ipls [-h] [-v]
+	-h	: Print the help and exit.  If the h flag is present, only help will display.
+	-v	: verbose output
 ";	
 			break;
 			
@@ -345,6 +432,8 @@ Where command is one of:
 	vmdelete: Delete virtual machine
 	nwls	: List networks
 	tpls	: List templates
+	lbls	: List load balancer
+	ipls	: List public IP Addresses
 	
 	For help on a specific command:  php cli-cs.php command --help
 ";		
