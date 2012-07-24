@@ -352,19 +352,6 @@ function vmdelete($flags=null, $arguments=array())
 
 
 function display_help($command=null) {
-	if (!$command)
-	{
-		echo "Usage: php cli-cs.php command [cmd_arg1] ...
-Where command is one of:
-	vmls	: List virtual machines
-	vmcreate: Create virtual machine
-	nwls	: List networks
-	tpls	: List templates
-	
-	For help on a specific command:  php cli-cs.php command --help
-";
-		return;
-	}
 	
 	switch($command) {
 		case 'vmls':
